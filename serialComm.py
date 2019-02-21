@@ -1,3 +1,9 @@
+from time import sleep
+import serial
+
+ser = serial.Serial('/dev/ttyACM0', 9600) # Establish the connection on a specific port
+
+
 '''
 
 	* Project Name: 	Smart Street Lamp 
@@ -56,7 +62,14 @@ class StreetLamp:
             self.longitude =  location_dict[self.location][1] + random.random()*0.001
             self.srno = random.randint(1, 100)
 
+
+		self.light_status = "ACTIVE"        
+        self.led_power = random.randint(1,10)*50
         self.name = self.location + "_" +str(self.srno)
+        self.car_charge_power = random.randint(400,630)
+        self.total_power = self.led_power + self.car_charge_power
+        self.pollution = random.randint(170, 340)
+        self.noise_level = random.randint(0,1)
 
         # TODO Give the video url
         # self.setup_mock()
@@ -99,7 +112,7 @@ class StreetLamp:
 
     
     def send_status(self):
-        self.randomize()
+        # self.randomize()
         _json= {
             "light_status" : self.light_status,
             "led_power" : self.led_power,
@@ -148,10 +161,21 @@ class MockThreads(Thread):
             print("subscribing ")
             client.subscribe("house/bulb1")#subscribe
             
-            self.streetlamp.setup_mock()
+            #self.streetlamp.setup_mock()
             while not self.stopped.wait(3):
                 # print("sending status message")
-                client.publish("streetlamps/status_update", self.streetlamp.send_status()) #publish
+				
+				fault, pollution =  ser.readline().split() # Read the newest output from the Arduino
+				if fault=="0":
+					self.light_status = "INACTIVE"
+					self.streetlamp.failure = self.streetlamp.FAILURE[1]
+				else:
+					self.light_status = "ACTIVE"
+					self.streetlamp.failure = []
+				self.pollution = pollution
+					
+				client.publish("streetlamps/status_update", self.streetlamp.send_status()) #publish
+				sleep(.1) # Delay for one tenth of a second
 
 stopFlag = Event()
 thread = MockThreads(stopFlag)
